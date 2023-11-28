@@ -22,6 +22,7 @@ class DStarLite:
         self.rows, self.cols = len(binary_array), len(binary_array[0])
         # Priority queue that manages states based on their costs
         self.open_list = [start]
+        start.cost = 0 # Set the initial cost of the start state to 0
 
     # Helper Method
     # checks to see if position @ (x, y) is unoccupied
@@ -30,10 +31,11 @@ class DStarLite:
 
     # Method to update the binary array
     def update_binary_array(self, x, y, value):
-        if 0 <= x < self.rows and 0 <= y < self.cols: # Check that the coordinates are within range
+        if 0 <= x < self.rows and 0 <= y < self.cols:  # Check that the coordinates are within range
             self.binary_array[x][y] = value
         else:
             print("Error: Attempted to update binary array outside of bounds.")
+            # Alternatively, we can raise an exception or handle it in another way.
 
     # Update the cost of a given state
     def update_cost(self, state, new_cost):
@@ -48,47 +50,55 @@ class DStarLite:
                 heapq.heappush(self.open_list, state)
 
     # Cost_to_move
-    def cost_to_move (self, current_state, neighbor_state):
-        # Extract indices (x, y) for the current and neighbor state
+    def cost_to_move(self, current_state, neighbor_state):
         current_x, current_y = current_state.index
         neighbor_x, neighbor_y = neighbor_state.index
 
-        # Calculate Euclidean distance as a simple cost measure
-        distance = ((current_x - neighbor_x) **2 + (current_y - neighbor_y) **2) **0.5
+        # Check if neighbor is within bounds
+        if 0 <= neighbor_x < self.rows and 0 <= neighbor_y < self.cols:
+            # Calculate Euclidean distance as a simple cost measure
+            distance = ((current_x - neighbor_x) ** 2 + (current_y - neighbor_y) ** 2) ** 0.5
 
-        # Additional penalty for proximity to obstacle
-        proximity_penalty = 0.1 
+            # Additional penalty for proximity to obstacle
+            proximity_penalty = 0.1 
 
-        # Check if neighbor is close to an obstacle
-        if self.binary_array[neighbor_x][neighbor_y] == 1:
-            distance += proximity_penalty
+            # Check if neighbor is close to an obstacle
+            if self.binary_array[neighbor_x][neighbor_y] == 1:
+                distance += proximity_penalty
 
-        # Assume a cost of 1 per unit distance
-        cost = distance
+            # Assume a cost of 1 per unit distance
+            cost = distance
 
-        return cost
-        
+            return cost
+        else:
+            # Handle the case where the neighbor is outside the bounds
+            return float('inf')  # or any appropriate value
+
+            
     # Propagate cost changes to neighbors 
     def propagate(self, state):
         # Propagate cost changes to neighbors
         x, y = state.index
 
         # Determine if LiDAR data is valid neighbors
-        valid_neighbors = []
         for dx in range(-1, 2):
             for dy in range(-1, 2):
                 if dx == 0 and dy == 0:
-                    continue # Skip the current state
-                
+                    continue  # Skip the current state
+
                 neighbor_x, neighbor_y = x + dx, y + dy
 
-                # Check if the neighbor is within the bounds and is valid based on LiDAR data
-                if 0 <= neighbor_x <self.rows and 0 <= neighbor_y < self.cols and self.is_valid(neighbor_x, neighbor_y):
+                # Check if the neighbor is within bounds and is valid based on LiDAR data
+                if 0 <= neighbor_x < self.rows and 0 <= neighbor_y < self.cols and self.is_valid(neighbor_x, neighbor_y):
                     neighbor_state = State(index=(neighbor_x, neighbor_y))
                     new_cost = state.cost + self.cost_to_move(state, neighbor_state)
 
                     self.update_cost(neighbor_state, new_cost)
 
+                    # Add the neighbor to the open list if not present
+                    if neighbor_state not in self.open_list:
+                        heapq.heappush(self.open_list, neighbor_state)
+                        
     # Main loop of algorithm
     # - Extracts the state w/ the lowest cost from priority queue
     # - Continues until the goal state is reached or no more paths can be improved
@@ -98,14 +108,23 @@ class DStarLite:
             # Extract lowest cost state
             current_state = heapq.heappop(self.open_list)
 
+            # Debugging: Print the current state and open_list
+            print(f"Replanning - Current State: {current_state.index}, Cost: {current_state.cost}")
+            print(f"Open List: {[state.index for state in self.open_list]}")
+
             # Break if at goal
             if current_state.index == self.goal.index:
                 break
 
-            # Update cost and propagate information B4 next loop
+            # Update cost and propagate information before the next loop
             new_cost = current_state.cost + 1
             self.update_cost(current_state, new_cost)
-            self.propagate(current_state)
+            self.propagate(current_state)  # Check if this is causing the issue
+
+            # Break if at goal
+            if current_state.index == self.goal.index:
+                print(f"Reached Goal: {self.goal.index}")
+                break
 
     # For backtracking
     # Determine if next state to move is has the minimum cost
@@ -134,6 +153,7 @@ class DStarLite:
             path.append(next_state)
             current_state = next_state
 
+    
 
         return path
     
